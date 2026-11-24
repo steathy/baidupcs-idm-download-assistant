@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name              网盘直链下载助手 (IDM 修复版)
-// @namespace         https://github.com/steathy/baidu-pan-idm-download-assistant
-// @version           1.0.0
+// @name              网盘直链下载助手IDM修复版
+// @namespace         https://github.com/steathy/baidupcs-idm-download-assistant
+// @version           1.0.1
 // @author            YouXiaoHou
 // @description       非官方修改版，基于 网盘直链下载助手 6.2.7：修复百度网盘「API下载」无法唤起 IDM 的问题（百度把下载地址改为跳转到 HTTPS 节点后，IDM 无法接管，文件只能在浏览器内下载）。其余功能与原版相同。Unofficial fork: makes Baidu Netdisk "API下载" hand downloads to IDM again.
 // @license           AGPL-3.0-or-later
-// @homepage          https://github.com/steathy/baidu-pan-idm-download-assistant
-// @supportURL        https://github.com/steathy/baidu-pan-idm-download-assistant/issues
-// @updateURL         https://raw.githubusercontent.com/steathy/baidu-pan-idm-download-assistant/main/panlinker-idm.user.js
-// @downloadURL       https://raw.githubusercontent.com/steathy/baidu-pan-idm-download-assistant/main/panlinker-idm.user.js
+// @homepage          https://github.com/steathy/baidupcs-idm-download-assistant
+// @supportURL        https://github.com/steathy/baidupcs-idm-download-assistant/issues
+// @updateURL         https://raw.githubusercontent.com/steathy/baidupcs-idm-download-assistant/main/panlinker-idm.user.js
+// @downloadURL       https://raw.githubusercontent.com/steathy/baidupcs-idm-download-assistant/main/panlinker-idm.user.js
 // @match             *://pan.baidu.com/disk/home*
 // @match             *://yun.baidu.com/disk/home*
 // @match             *://pan.baidu.com/disk/main*
