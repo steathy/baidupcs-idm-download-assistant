@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name              网盘直链下载助手IDM修复版
 // @namespace         https://github.com/steathy/baidupcs-idm-download-assistant
-// @version           1.0.1
+// @version           1.0.2
 // @author            YouXiaoHou
 // @description       非官方修改版，基于 网盘直链下载助手 6.2.7：修复百度网盘「API下载」无法唤起 IDM 的问题（百度把下载地址改为跳转到 HTTPS 节点后，IDM 无法接管，文件只能在浏览器内下载）。其余功能与原版相同。Unofficial fork: makes Baidu Netdisk "API下载" hand downloads to IDM again.
 // @license           AGPL-3.0-or-later
@@ -66,6 +66,7 @@
 //      IDM's browser extension takes over. Baidu now redirects to an https:// node, which IDM cannot see.
 //   2. The script updates only from this fork's repository; the upstream "new version" menu entry is hidden.
 //   3. The author's config API is still called with the upstream version this fork is based on (6.2.7).
+//   4. (2026-11-24, v1.0.2) The activation-code dialog shown on first use is disabled.
 // License: AGPL-3.0-or-later (unchanged), see LICENSE.
 // ---------------------------------------------------------------------------------------------------------
 
@@ -82,6 +83,8 @@
     const name = scriptInfo.name;
     // Fork: do not offer the upstream script as an "update" - installing it would run alongside this fork.
     const SHOW_UPSTREAM_UPDATE = false;
+    // Fork: no activation-code dialog ("请输入本助手开源协议") on first use - the download button is always shown.
+    const REQUIRE_ACTIVATION_CODE = false;
     // IDM fix: how Baidu "API下载" links are handed to IDM.
     //   'auto'    - video/audio -> 'browser', everything else -> 'http'   (recommended)
     //   'http'    - final CDN link over plain HTTP, taken over by IDM's network driver (not possible for video/audio)
@@ -1285,7 +1288,7 @@
             (`https://api.youxiaohou.com/config/v2?ver=${version}&a=${author}`, {}, {}, 'text');
             pan = JSON.parse(base.d(res));
             Object.freeze && Object.freeze(pan);
-            pan.num === base.getValue('setting_init_code') ||
+            !REQUIRE_ACTIVATION_CODE || pan.num === base.getValue('setting_init_code') ||
             pan.license === base.getValue('license') ? this.addButton() : this.addInitButton();
             base.createTip();
             base.registerMenuCommand();
@@ -1655,7 +1658,7 @@
             (`https://api.youxiaohou.com/config/v2/ali?ver=${version}&a=${author}`, {}, {}, 'text');
             pan = JSON.parse(base.d(res));
             Object.freeze && Object.freeze(pan);
-            pan.num === base.getValue('setting_init_code') ||
+            !REQUIRE_ACTIVATION_CODE || pan.num === base.getValue('setting_init_code') ||
             pan.license === base.getValue('license') ? this.addButton() : this.addInitButton();
             base.createTip();
             base.registerMenuCommand();
@@ -1974,7 +1977,7 @@
             (`https://api.youxiaohou.com/config/v2/tianyi?ver=${version}&a=${author}`, {}, {}, 'text');
             pan = JSON.parse(base.d(res));
             Object.freeze && Object.freeze(pan);
-            pan.num === base.getValue('setting_init_code') ||
+            !REQUIRE_ACTIVATION_CODE || pan.num === base.getValue('setting_init_code') ||
             pan.license === base.getValue('license') ? this.addButton() : this.addInitButton();
             this.getToken();
             base.createTip();
@@ -2316,7 +2319,7 @@
             (`https://api.youxiaohou.com/config/v2/xunlei?ver=${version}&a=${author}`, {}, {}, 'text');
             pan = JSON.parse(base.d(res));
             Object.freeze && Object.freeze(pan);
-            pan.num === base.getValue('setting_init_code') ||
+            !REQUIRE_ACTIVATION_CODE || pan.num === base.getValue('setting_init_code') ||
             pan.license === base.getValue('license') ? this.addButton() : this.addInitButton();
             base.createTip();
             base.registerMenuCommand();
@@ -2347,7 +2350,7 @@
                 if (e.oldURL === home && e.newURL === all) return;
                 await base.sleep(150);
                 if ($('.quark-button').length > 0) return;
-                pan.num === base.getValue('setting_init_code') ||
+                !REQUIRE_ACTIVATION_CODE || pan.num === base.getValue('setting_init_code') ||
                 pan.license === base.getValue('license') ? this.addButton() : this.addInitButton();
             });
             doc.on('click', '.pl-button-mode', (e) => {
@@ -2612,7 +2615,7 @@
             (`https://api.youxiaohou.com/config/v2/quark?ver=${version}&a=${author}`, {}, {}, 'text');
             pan = JSON.parse(base.d(res));
             Object.freeze && Object.freeze(pan);
-            pan.num === base.getValue('setting_init_code') ||
+            !REQUIRE_ACTIVATION_CODE || pan.num === base.getValue('setting_init_code') ||
             pan.license === base.getValue('license') ? this.addButton() : this.addInitButton();
             this.addPageListener();
             base.createTip();
@@ -2993,7 +2996,7 @@
             (`https://api.youxiaohou.com/config/v2/yidong?ver=${version}&a=${author}`, {}, {}, 'text');
             pan = JSON.parse(base.d(res));
             Object.freeze && Object.freeze(pan);
-            pan.num === base.getValue('setting_init_code') ||
+            !REQUIRE_ACTIVATION_CODE || pan.num === base.getValue('setting_init_code') ||
             pan.license === base.getValue('license') ? this.addButton() : this.addInitButton();
             base.createTip();
             base.registerMenuCommand();

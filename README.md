@@ -14,9 +14,8 @@ Backup (direct GitHub link):
 1. In Tampermonkey, disable or remove the original 网盘直链下载助手. Two copies would both add a "下载助手"
    button and both handle clicks.
 2. Open the install link above. Tampermonkey shows its install page; click **Install**.
-3. Reload `pan.baidu.com`. Tampermonkey treats this as a new script, so it starts with empty settings: it asks
-   once for its activation code (暗号), exactly like a fresh install of the original, and re-authorises with
-   Baidu on first use.
+3. Reload `pan.baidu.com`. Tampermonkey treats this as a new script, so it starts with empty settings and
+   re-authorises with Baidu on first use. There is no activation-code prompt.
 4. Select a file → **下载助手 → API下载** → click the file's link. IDM takes the download over.
 
 IDM has to be set up as follows:
@@ -98,12 +97,15 @@ All changes are marked `IDM fix` or `Fork:` in the code.
 3. **Own identity and version.** Separate `@name` / `@namespace` and its own version numbers. The author's
    configuration service is still called with the upstream version this fork is based on (`6.2.7`).
 
+4. **No activation-code dialog.** The original shows a dimmed button on first use and asks for a code
+   ("请输入本助手开源协议"). This fork shows the working download button straight away.
+
 ## Limitations
 
 - The `http` route relies on Baidu's CDN nodes still answering on port 80; the `browser` route relies on the
   final link not being tied to the `pan.baidu.com` User-Agent. Both hold as of November 2026.
-- Like the original, the script fetches its configuration (API endpoints, activation code, texts) from the
-  original author's service at run time. Pinning the code here does not pin that.
+- Like the original, the script fetches its configuration (API endpoints, texts) from the original author's
+  service at run time. Pinning the code here does not pin that.
 - Download speed is whatever Baidu grants the account; this fork does not change it.
 
 ## Releasing an update
