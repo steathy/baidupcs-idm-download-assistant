@@ -22,7 +22,8 @@ IDM has to be set up as follows:
 
 - IDM is running.
 - **Options → General → Use advanced browser integration** is enabled (used for everything except video/audio).
-- The **IDM Integration Module** extension is enabled in the browser (used for video/audio).
+- The **IDM Integration Module** extension is enabled in the browser (used for video/audio, and for any file
+  the advanced integration does not take).
 - The file's extension is listed in **Options → File types**. IDM ignores types that are not listed.
 
 Tested in November 2026 with Chrome 157, Tampermonkey 5.5.0, IDM 6.43 build 15 and IDM Integration Module 6.43.18.
@@ -36,7 +37,8 @@ const IDM_HANDOFF = 'auto';   // 'auto' | 'http' | 'browser'
 ```
 
 - `auto` (default): video/audio → `browser`, everything else → `http`.
-- `http`: always the plain-HTTP route. Does not work for video/audio.
+- `http`: always the plain-HTTP route first; a file IDM does not take that way goes the `browser` route.
+  Never works for video/audio.
 - `browser`: always a normal HTTPS browser download. Keeps everything encrypted and needs only IDM's browser
   extension.
 
@@ -46,9 +48,10 @@ The two routes are explained under [What this fork changes](#what-this-fork-chan
 
 | Symptom | Likely cause |
 |---|---|
-| Row shows "未发现IDM，使用自带浏览器下载" and a progress bar | The file type is not in IDM's **File types** list, IDM is not running, or advanced browser integration is off. |
-| Video/audio keeps downloading in the browser | IDM's browser extension is disabled or not connected to IDM, or the type is not in IDM's **File types** list. |
-| Row stays on "正在获取可被 IDM 接管的直链…" for ~15 s, then behaves like the original | The redirect lookup failed or timed out; the original behaviour is used as fallback. |
+| Row says "后台请求未被 IDM 接管，已改为浏览器下载…" | IDM's advanced integration did not take that file. It skips one now and then, and always does if it is off or the file type is not in IDM's **File types** list. The file went to IDM's browser extension instead. |
+| A file keeps downloading in the browser (Chrome's download bar) | IDM's browser extension is disabled or not connected to IDM, or the type is not in IDM's **File types** list. |
+| Row shows "未能获取可被 IDM 接管的直链，使用自带浏览器下载" and a progress bar | The redirect lookup failed or timed out; the file is downloaded inside the page as in the original. |
+| Clicking outside the "API下载" dialog does nothing | Not every file in it has been handed to IDM yet. Close it with ✕. |
 | Two "下载助手" buttons | The original script is still enabled next to this fork. |
 | The install link shows the script's source text instead of an install page | Tampermonkey is disabled or not installed in this browser. |
 
@@ -84,11 +87,17 @@ All changes are marked `IDM fix` or `Fork:` in the code.
    | Route | Used for (`IDM_HANDOFF = 'auto'`) | How IDM gets the download |
    |---|---|---|
    | `http` | everything except video/audio | The final link is fetched over `http://`, so IDM's network driver intercepts the request as it did until 2025. The row shows "已成功唤起IDM，请查看IDM下载框！". |
-   | `browser` | video/audio | A normal HTTPS browser download of the final link is started in a hidden frame. IDM's browser extension takes it over like any other download; if it does not, the browser downloads the file itself. |
+   | `browser` | video/audio, and any file the `http` route did not get to IDM | A normal HTTPS browser download of the final link is started in a hidden frame. IDM's browser extension takes it over like any other download; if it does not, the browser downloads the file itself. |
+
+   IDM's network driver does not take every background request: in a browser without IDM's extension it took
+   only the first one per browser session, and with the extension it still skips one now and then. When IDM
+   does not answer, the script stops the request as soon as the response headers arrive and hands the file to
+   the `browser` route. The original script downloaded such a file inside the page instead.
 
    If the final link cannot be determined, the original link is used, which is the pre-fix behaviour.
-   The access token never leaves HTTPS. On the `http` route only the signed, per-file CDN link (and the file
-   content) travel over plain HTTP, which is how the hand-off worked before Baidu's change.
+   The access token never leaves HTTPS: a link that still carries it is never sent over plain HTTP or to a
+   browser download. On the `http` route only the signed, per-file CDN link (and the file content) travel over
+   plain HTTP, which is how the hand-off worked before Baidu's change.
 
 2. **Updates come only from this repository.** `@updateURL` / `@downloadURL` point at this repository, and the
    original's "new version" menu entry is hidden, so the original can never replace this script through an
@@ -99,6 +108,10 @@ All changes are marked `IDM fix` or `Fork:` in the code.
 
 4. **No activation-code dialog.** The original shows a dimmed button on first use and asks for a code
    ("请输入本助手开源协议"). This fork shows the working download button straight away.
+
+5. **The "API下载" dialog closes on a click outside it** once every file in it has been handed to IDM (or to a
+   browser download). Until then, and while a file still downloads inside the page, only ✕ closes it, so a
+   stray click cannot cancel a running download.
 
 ## Limitations
 

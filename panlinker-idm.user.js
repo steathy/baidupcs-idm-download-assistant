@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name              网盘直链下载助手IDM修复版
 // @namespace         https://github.com/steathy/baidupcs-idm-download-assistant
-// @version           1.0.2
+// @version           1.0.3
 // @author            YouXiaoHou
 // @description       非官方修改版，基于 网盘直链下载助手 6.2.7：修复百度网盘「API下载」无法唤起 IDM 的问题（百度把下载地址改为跳转到 HTTPS 节点后，IDM 无法接管，文件只能在浏览器内下载）。其余功能与原版相同。Unofficial fork: makes Baidu Netdisk "API下载" hand downloads to IDM again.
 // @license           AGPL-3.0-or-later
@@ -58,7 +58,7 @@
 // ==/UserScript==
 
 // ---------------------------------------------------------------------------------------------------------
-// Modified version - notice as required by AGPL-3.0 section 5(a).                  Modified on 2026-11-24.
+// Modified version - notice as required by AGPL-3.0 section 5(a).                  Modified on 2026-11-25.
 // Based on 网盘直链下载助手 v6.2.7 by YouXiaoHou (https://www.youxiaohou.com/, https://github.com/syhyz1990/baiduyun).
 // Changes in this fork (search for "IDM fix" / "Fork:" in the code):
 //   1. Baidu Netdisk "API下载": the download link is resolved to its final CDN address first and handed to
@@ -67,6 +67,10 @@
 //   2. The script updates only from this fork's repository; the upstream "new version" menu entry is hidden.
 //   3. The author's config API is still called with the upstream version this fork is based on (6.2.7).
 //   4. (2026-11-24, v1.0.2) The activation-code dialog shown on first use is disabled.
+//   5. (2026-11-25, v1.0.3) If IDM does not take a file's background HTTP request, the file is handed to a
+//      browser download (IDM's browser extension) instead of being downloaded inside the page. A link that
+//      still carries the access token is never sent over plain HTTP or to a browser download. The "API下载"
+//      dialog closes on a click outside it once every file in it was handed to IDM.
 // License: AGPL-3.0-or-later (unchanged), see LICENSE.
 // ---------------------------------------------------------------------------------------------------------
 
@@ -87,7 +91,8 @@
     const REQUIRE_ACTIVATION_CODE = false;
     // IDM fix: how Baidu "API下载" links are handed to IDM.
     //   'auto'    - video/audio -> 'browser', everything else -> 'http'   (recommended)
-    //   'http'    - final CDN link over plain HTTP, taken over by IDM's network driver (not possible for video/audio)
+    //   'http'    - final CDN link over plain HTTP, taken over by IDM's network driver (not possible for video/audio);
+    //               a file the driver does not take goes the 'browser' way
     //   'browser' - normal HTTPS browser download, taken over by IDM's browser extension
     const IDM_HANDOFF = 'auto';
     const IDM_MEDIA_EXT = /\.(mp4|m4v|mkv|avi|wmv|asf|mov|qt|flv|f4v|webm|3gp|3gpp|mpg|mpeg|mpe|ts|m2ts|rm|rmvb|vob|ogv|mp3|m4a|aac|wav|wma|ogg|flac|ape|ra|aif|mpa)$/i;
@@ -786,6 +791,7 @@
                 let filename = o.link[0].dataset.filename;
                 let index = o.link[0].dataset.index;
                 _reset(index);
+                delete o.link[0].dataset.handedOff;
                 // IDM fix: the dlink now redirects to an https:// CDN node, which IDM cannot take over.
                 // Look up the final link first, then hand it to IDM over http:// or as a browser download.
                 if (o.link[0].dataset.resolving) return;
@@ -793,19 +799,35 @@
                 let label = o.link.text();
                 o.link.text('正在获取可被 IDM 接管的直链…');
                 let target = await this.getIdmTarget(o.link[0].dataset.link, filename);
+                let taken = null;
+                if (target.route === 'http' && document.contains(o.link[0])) {
+                    o.link.text('正在唤起 IDM…');
+                    taken = await this.idmHttpHandoff(target.url);
+                }
                 delete o.link[0].dataset.resolving;
                 if (!document.contains(o.link[0])) return;
-                if (target.browser) {
-                    this.browserDownload(target.url);
-                    o.link.text('已发起浏览器下载，IDM 会自动接管；若未弹出 IDM，则由浏览器直接下载。').animate({opacity: '0.5'}, "slow");
+                if (taken) {
+                    o.link[0].dataset.handedOff = 'idm';
+                    o.link.text('已成功唤起IDM，请查看IDM下载框！').animate({opacity: '0.5'}, "slow");
+                    return;
+                }
+                if (target.route !== 'original') {
+                    // video/audio, or IDM's network driver did not take the background request: hand the HTTPS CDN
+                    // link to the browser's download manager, where IDM's browser extension takes it over
+                    this.browserDownload(target.cdn);
+                    o.link[0].dataset.handedOff = 'browser';
+                    o.link.text((taken === false ? '后台请求未被 IDM 接管，已改为浏览器下载' : '已发起浏览器下载') +
+                        '，IDM 会自动接管；若未弹出 IDM，则由浏览器直接下载。').animate({opacity: '0.5'}, "slow");
                     return;
                 }
                 o.link.text(label);
+                o.item.find('.pl-progress-tip').text('未能获取可被 IDM 接管的直链，使用自带浏览器下载');
                 base.get(target.url, {"User-Agent": pan.ua}, 'blob', {filename, index});
                 ins[index] = setInterval(() => {
                     let prog = +progress[index] || 0;
                     let isIDM = idm[index] || false;
                     if (isIDM) {
+                        o.link[0].dataset.handedOff = 'idm';
                         o.tip.hide();
                         o.progress.hide();
                         o.link.text('已成功唤起IDM，请查看IDM下载框！').animate({opacity: '0.5'}, "slow").show();
@@ -933,24 +955,58 @@
             });
         },
 
-        // IDM fix: decide how a file is handed to IDM. Resolves to {url, browser}:
-        //   browser === false -> fetch url as before (http:// CDN link, intercepted by IDM's network driver)
-        //   browser === true  -> start a normal browser download of url (taken over by IDM's browser extension)
-        // If the final link cannot be determined, the original dlink is used (the pre-fix behaviour).
+        // IDM fix: decide how a file is handed to IDM. Resolves to {route, url, cdn} (cdn = the HTTPS CDN link):
+        //   'http'     -> fetch url (the CDN link over http://) in the background; IDM's network driver takes it over
+        //   'browser'  -> start a normal browser download of cdn; IDM's browser extension takes it over
+        //   'original' -> the final link could not be determined: the original dlink as before (pre-fix behaviour)
         async getIdmTarget(dlink, filename) {
             let final = await this.getFinalLink(dlink);
             let cdn = '';
             try {
                 let u = new URL(final.url);
-                if (u.protocol === 'https:' && !u.port && /(^|\.)baidupcs\.com$|(^|\.)pcs\.baidu\.com$/i.test(u.hostname)) cdn = final.url;
+                // never a link that still carries the access token (no redirect happened): that one stays on HTTPS
+                if (u.protocol === 'https:' && !u.port && /(^|\.)baidupcs\.com$|(^|\.)pcs\.baidu\.com$/i.test(u.hostname) &&
+                    !u.searchParams.has('access_token')) cdn = final.url;
             } catch (e) {
             }
+            if (!cdn) return {route: 'original', url: dlink, cdn: ''};
             let media = /^(video|audio)\//i.test(final.type) || IDM_MEDIA_EXT.test(filename || '');
             if (IDM_HANDOFF === 'browser' || (IDM_HANDOFF === 'auto' && media)) {
-                return {url: cdn || dlink, browser: true};
+                return {route: 'browser', url: cdn, cdn};
             }
             // plain string swap: the signed query string must stay byte-identical
-            return {url: cdn ? cdn.replace(/^https:/i, 'http:') : dlink, browser: false};
+            return {route: 'http', url: cdn.replace(/^https:/i, 'http:'), cdn};
+        },
+
+        // IDM fix: fetch the http:// CDN link in the background so that IDM's network driver takes it over.
+        // Resolves to true when IDM answered (HTTP 204 "Intercepted by the IDM Advanced Integration"), false when it
+        // did not take this request (the driver does not take every one) or the request failed. Stops as soon as
+        // the response headers are in, so a file IDM did not take is never pulled into the page.
+        idmHttpHandoff(url) {
+            return new Promise((resolve) => {
+                let done = false, requestObj = null;
+                const finish = (taken) => {
+                    if (done) return;
+                    done = true;
+                    resolve(taken);
+                    try {
+                        requestObj && requestObj.abort && requestObj.abort();
+                    } catch (e) {
+                    }
+                };
+                requestObj = GM_xmlhttpRequest({
+                    method: "GET", url,
+                    headers: {"User-Agent": pan.ua},
+                    timeout: 15000,
+                    onreadystatechange: (res) => {
+                        res.readyState >= 2 && res.status && finish(res.status === 204);
+                    },
+                    onload: (res) => finish(res.status === 204),
+                    onerror: () => finish(false),
+                    onabort: () => finish(false),
+                    ontimeout: () => finish(false),
+                });
+            });
         },
 
         // IDM fix: normal browser download - navigate a hidden frame to the link (the CDN answers with an attachment).
@@ -960,6 +1016,13 @@
             frame.src = url;
             document.body.appendChild(frame);
             setTimeout(() => frame.remove(), 120000);
+        },
+
+        // Fork: true once every file link in the open "API下载" dialog was handed to IDM (or to the browser's own
+        // download manager), i.e. nothing downloads inside the page any more. Other dialogs have no such links.
+        allLinksHandedOff() {
+            let links = $('.swal2-popup .listener-link-api').toArray();
+            return links.length > 0 && links.every((a) => !!a.dataset.handedOff);
         },
 
         addButton() {
@@ -1268,7 +1331,8 @@
                 title,
                 html,
                 footer,
-                allowOutsideClick: false,
+                // Fork: a click outside closes the "API下载" dialog once all its files were handed to IDM.
+                allowOutsideClick: () => this.allLinksHandedOff(),
                 showCloseButton: true,
                 showConfirmButton: false,
                 position: 'top',
